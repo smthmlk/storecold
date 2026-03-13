@@ -246,8 +246,10 @@ fn reconcile_root(
                 summary.changed_files += 1;
                 changed_path_hashes.insert(path_hash);
 
-                if with_catalog(catalog, |catalog| catalog.content_ref(&root.repository, &sha512))?
-                    .is_some()
+                if with_catalog(catalog, |catalog| {
+                    catalog.content_ref(&root.repository, &sha512)
+                })?
+                .is_some()
                 {
                     with_catalog(catalog, |catalog| {
                         catalog.insert_version(&version)?;
@@ -286,8 +288,9 @@ fn reconcile_root(
         }
     }
 
-    let active_paths =
-        with_catalog(catalog, |catalog| catalog.active_paths_under_root(&root.repository, &root.path))?;
+    let active_paths = with_catalog(catalog, |catalog| {
+        catalog.active_paths_under_root(&root.repository, &root.path)
+    })?;
     for missing in active_paths {
         if seen_paths.contains(&missing.path) {
             continue;
@@ -718,7 +721,10 @@ async fn put_data_with_retry(
     body: Bytes,
 ) -> Result<()> {
     for attempt in 1..=MAX_UPLOAD_ATTEMPTS {
-        match providers.put_data(repository, object_key, body.clone()).await {
+        match providers
+            .put_data(repository, object_key, body.clone())
+            .await
+        {
             Ok(()) => return Ok(()),
             Err(error) if attempt < MAX_UPLOAD_ATTEMPTS => {
                 let delay = Duration::from_millis(RETRY_BASE_DELAY_MS * (1 << (attempt - 1)));
@@ -746,7 +752,10 @@ async fn put_index_with_retry(
     body: Bytes,
 ) -> Result<()> {
     for attempt in 1..=MAX_UPLOAD_ATTEMPTS {
-        match providers.put_index(repository, object_key, body.clone()).await {
+        match providers
+            .put_index(repository, object_key, body.clone())
+            .await
+        {
             Ok(()) => return Ok(()),
             Err(error) if attempt < MAX_UPLOAD_ATTEMPTS => {
                 let delay = Duration::from_millis(RETRY_BASE_DELAY_MS * (1 << (attempt - 1)));

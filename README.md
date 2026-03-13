@@ -59,8 +59,13 @@ The sample config uses `STORECOLD_PASSPHRASE`.
 
 Azure Blob can authenticate with either:
 
-- `AZURE_STORAGE_ACCESS_KEY`
-- a full connection string environment variable
+- `developer_tools` via Azure CLI / Azure Developer CLI credentials
+- `managed_identity`, optionally with a user-assigned client ID env var
+- `client_secret_env` for service-principal credentials
+- `sas_url_env` with a full account-level SAS URL
+
+Raw Azure storage account keys and Azure connection strings are no longer
+supported after the move to the official `azure_storage_blob` crate.
 
 S3 uses the standard AWS SDK credential chain.
 

@@ -105,7 +105,10 @@ fn encrypt_with_key(key_bytes: &[u8; 32], plaintext: &[u8]) -> Result<EncryptedB
     })
 }
 
-fn encrypt_with_key_in_place(key_bytes: &[u8; 32], mut plaintext: Vec<u8>) -> Result<EncryptedBlob> {
+fn encrypt_with_key_in_place(
+    key_bytes: &[u8; 32],
+    mut plaintext: Vec<u8>,
+) -> Result<EncryptedBlob> {
     let cipher = XChaCha20Poly1305::new(Key::from_slice(key_bytes));
     let nonce = random::<[u8; 24]>();
     cipher

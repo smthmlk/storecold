@@ -9,7 +9,9 @@ use crate::crypto::KeyMaterial;
 use crate::daemon;
 use crate::provider::ProviderPool;
 use crate::reconcile::{SyncSummary, sync_roots};
-use crate::state::{Catalog, ResolvedPaths, SharedCatalog, shared_catalog, with_catalog, write_private_file};
+use crate::state::{
+    Catalog, ResolvedPaths, SharedCatalog, shared_catalog, with_catalog, write_private_file,
+};
 
 pub async fn run() -> Result<()> {
     install_tracing();

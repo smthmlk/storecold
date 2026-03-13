@@ -138,8 +138,25 @@ pub enum Backend {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AzureAuth {
-    AccessKeyEnv { env_var: String },
-    ConnectionStringEnv { env_var: String },
+    AccessKeyEnv {
+        env_var: String,
+    },
+    ConnectionStringEnv {
+        env_var: String,
+    },
+    DeveloperTools,
+    ManagedIdentity {
+        #[serde(default)]
+        client_id_env_var: Option<String>,
+    },
+    ClientSecretEnv {
+        tenant_id_env_var: String,
+        client_id_env_var: String,
+        client_secret_env_var: String,
+    },
+    SasUrlEnv {
+        env_var: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,9 +266,7 @@ pub fn sample_config(host_id: String) -> Config {
                 name: "cold-azure".to_string(),
                 backend: Backend::AzureBlob {
                     account: "replace-me".to_string(),
-                    auth: AzureAuth::AccessKeyEnv {
-                        env_var: "AZURE_STORAGE_ACCESS_KEY".to_string(),
-                    },
+                    auth: AzureAuth::DeveloperTools,
                     data_container: "backup-data".to_string(),
                     data_prefix: "data/".to_string(),
                     access_tier: "Archive".to_string(),
@@ -313,8 +328,7 @@ mod tests {
         let dir = tempdir().expect("temp dir");
         let config_path = dir.path().join("storecold.yaml");
         fs::write(&config_path, "version: 1\n").expect("write config");
-        fs::set_permissions(&config_path, fs::Permissions::from_mode(0o644))
-            .expect("chmod config");
+        fs::set_permissions(&config_path, fs::Permissions::from_mode(0o644)).expect("chmod config");
 
         assert!(config_permissions_too_open(&config_path).expect("permission check"));
     }
