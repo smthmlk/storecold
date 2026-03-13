@@ -18,6 +18,9 @@ build: sec
 release:
   cargo build --release
 
+deb:
+  cargo deb
+
 test:
   cargo test
 

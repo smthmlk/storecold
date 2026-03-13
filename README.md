@@ -7,6 +7,7 @@ publishes a hot index alongside cold data in S3 or Azure Blob.
 ## Current capabilities
 
 - YAML config at `~/.storecold.yaml`
+- Optional `--config` / `--state-dir` overrides for packaged or system-level installs
 - Long-running daemon mode with filesystem notifications and periodic rescans
 - Client-side encryption using a passphrase or local key file
 - SHA-512 content addressing and keyed path hashing
@@ -52,6 +53,21 @@ just ci
 `just secrets` runs `gitleaks` against the git history, preferring the newer
 `gitleaks git` subcommand but falling back to `detect` for older installs.
 
+To build a Debian package on Debian or Ubuntu:
+
+```bash
+sudo apt-get install -y build-essential dpkg-dev
+cargo install --locked cargo-deb
+just deb
+```
+
+The generated `.deb` will install:
+
+- `/usr/bin/storecold`
+- `/lib/systemd/system/storecold.service`
+- `/etc/storecold/config.yaml`
+- `/etc/storecold/storecold.env`
+
 ## Credentials
 
 Passphrase mode expects the environment variable configured in `key_source`.
@@ -73,5 +89,11 @@ S3 uses the standard AWS SDK credential chain.
 
 The intended production model is to run `storecold daemon` under `systemd`.
 A starter unit file is provided in `contrib/systemd/storecold.service`.
-Copy `contrib/systemd/storecold.env.example` to
-`/etc/storecold/storecold.env`, fill in the secrets, and set mode `0600`.
+For packaged installs, the service runs with `--config /etc/storecold/config.yaml`
+and stores local state in `/var/lib/storecold`.
+Edit `/etc/storecold/config.yaml` and `/etc/storecold/storecold.env`, then enable
+the service:
+
+```bash
+sudo systemctl enable --now storecold
+```

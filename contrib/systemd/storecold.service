@@ -5,9 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/storecold daemon
+ExecStart=/usr/bin/storecold --config /etc/storecold/config.yaml daemon
 Restart=on-failure
 RestartSec=10
+StateDirectory=storecold
+UMask=0077
 # Store credentials in /etc/storecold/storecold.env with mode 0600.
 # Do not place passphrases inline in the unit file.
 EnvironmentFile=-/etc/storecold/storecold.env

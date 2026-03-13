@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use tracing_subscriber::EnvFilter;
@@ -17,11 +17,27 @@ pub async fn run() -> Result<()> {
     install_tracing();
 
     let cli = Cli::parse();
+    let overrides = PathOverrides::from_cli(&cli);
     match cli.command {
-        Command::Init { force } => init_command(force),
-        Command::Status => status_command(),
-        Command::Sync { path } => sync_command(path.as_deref()).await,
-        Command::Daemon => daemon_command().await,
+        Command::Init { force } => init_command(force, &overrides),
+        Command::Status => status_command(&overrides),
+        Command::Sync { path } => sync_command(path.as_deref(), &overrides).await,
+        Command::Daemon => daemon_command(&overrides).await,
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct PathOverrides {
+    config_path: Option<PathBuf>,
+    state_dir: Option<PathBuf>,
+}
+
+impl PathOverrides {
+    fn from_cli(cli: &Cli) -> Self {
+        Self {
+            config_path: cli.config.clone(),
+            state_dir: cli.state_dir.clone(),
+        }
     }
 }
 
@@ -30,8 +46,11 @@ fn install_tracing() {
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-fn init_command(force: bool) -> Result<()> {
-    let paths = ResolvedPaths::discover(None)?;
+fn init_command(force: bool, overrides: &PathOverrides) -> Result<()> {
+    let paths = ResolvedPaths::discover(
+        overrides.config_path.as_deref(),
+        overrides.state_dir.as_deref(),
+    )?;
     if paths.config_path.exists() && !force {
         bail!(
             "config already exists at {} (use --force to overwrite)",
@@ -40,7 +59,7 @@ fn init_command(force: bool) -> Result<()> {
     }
 
     paths.ensure_dirs()?;
-    let config = sample_config(default_host_id()?);
+    let config = starter_config(default_host_id()?, overrides.state_dir.as_deref());
     let rendered = serde_yaml::to_string(&config).context("serialize sample config")?;
     write_private_file(&paths.config_path, rendered.as_bytes())?;
     let _ = Catalog::open(&paths)?;
@@ -58,21 +77,26 @@ fn init_command(force: bool) -> Result<()> {
     Ok(())
 }
 
-fn status_command() -> Result<()> {
-    let default_paths = ResolvedPaths::discover(None)?;
-    println!("config: {}", default_paths.config_path.display());
-    println!("config_exists: {}", default_paths.config_path.exists());
-    println!("state: {}", default_paths.state_dir.display());
-    println!("database: {}", default_paths.database_path.display());
+fn status_command(overrides: &PathOverrides) -> Result<()> {
+    let bootstrap_paths = ResolvedPaths::discover(
+        overrides.config_path.as_deref(),
+        overrides.state_dir.as_deref(),
+    )?;
+    println!("config: {}", bootstrap_paths.config_path.display());
+    println!("config_exists: {}", bootstrap_paths.config_path.exists());
 
-    if !default_paths.config_path.exists() {
+    if !bootstrap_paths.config_path.exists() {
+        println!("state: {}", bootstrap_paths.state_dir.display());
+        println!("database: {}", bootstrap_paths.database_path.display());
         println!("hint: run `storecold init` to create a starter config");
         return Ok(());
     }
 
-    let config = Config::load(&default_paths.config_path)?;
-    let paths = ResolvedPaths::discover(config.state_dir.as_deref())?;
+    let config = Config::load(&bootstrap_paths.config_path)?;
+    let paths = runtime_paths(&bootstrap_paths.config_path, &config, overrides)?;
     let catalog = Catalog::open(&paths)?;
+    println!("state: {}", paths.state_dir.display());
+    println!("database: {}", paths.database_path.display());
     println!("host_id: {}", config.host_id);
     println!("repositories: {}", config.repositories.len());
     println!("paths: {}", config.paths.len());
@@ -80,16 +104,16 @@ fn status_command() -> Result<()> {
     Ok(())
 }
 
-async fn sync_command(path_filter: Option<&str>) -> Result<()> {
-    let runtime = load_runtime().await?;
+async fn sync_command(path_filter: Option<&str>, overrides: &PathOverrides) -> Result<()> {
+    let runtime = load_runtime(overrides).await?;
     let roots = select_roots(&runtime.config.paths, path_filter)?;
     let summaries = runtime.sync_selected(&roots).await?;
     print_summaries(&summaries);
     Ok(())
 }
 
-async fn daemon_command() -> Result<()> {
-    let runtime = load_runtime().await?;
+async fn daemon_command(overrides: &PathOverrides) -> Result<()> {
+    let runtime = load_runtime(overrides).await?;
     daemon::run(runtime).await
 }
 
@@ -120,10 +144,13 @@ impl Runtime {
     }
 }
 
-async fn load_runtime() -> Result<Runtime> {
-    let default_paths = ResolvedPaths::discover(None)?;
-    let config = Config::load(&default_paths.config_path)?;
-    let paths = ResolvedPaths::discover(config.state_dir.as_deref())?;
+async fn load_runtime(overrides: &PathOverrides) -> Result<Runtime> {
+    let bootstrap_paths = ResolvedPaths::discover(
+        overrides.config_path.as_deref(),
+        overrides.state_dir.as_deref(),
+    )?;
+    let config = Config::load(&bootstrap_paths.config_path)?;
+    let paths = runtime_paths(&bootstrap_paths.config_path, &config, overrides)?;
     let catalog = Catalog::open(&paths)?;
     let keys = KeyMaterial::load(&config, &paths)?;
     let providers = ProviderPool::from_config(&config).await?;
@@ -142,6 +169,28 @@ fn default_host_id() -> Result<String> {
         .context("read hostname")?
         .to_string_lossy()
         .into_owned())
+}
+
+fn starter_config(host_id: String, state_dir_override: Option<&Path>) -> Config {
+    let mut config = sample_config(host_id);
+    if let Some(state_dir) = state_dir_override {
+        config.state_dir = Some(state_dir.to_path_buf());
+    }
+    config
+}
+
+fn runtime_paths(
+    config_path: &Path,
+    config: &Config,
+    overrides: &PathOverrides,
+) -> Result<ResolvedPaths> {
+    ResolvedPaths::discover(
+        Some(config_path),
+        overrides
+            .state_dir
+            .as_deref()
+            .or(config.state_dir.as_deref()),
+    )
 }
 
 fn select_roots<'a>(roots: &'a [PathSpec], path_filter: Option<&str>) -> Result<Vec<&'a PathSpec>> {
@@ -183,5 +232,15 @@ mod tests {
         let selected = select_roots(&roots, Some("/tmp/two")).expect("selection succeeds");
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].path, Path::new("/tmp/two"));
+    }
+
+    #[test]
+    fn starter_config_persists_explicit_state_dir() {
+        let config = starter_config(
+            "pi4-office".to_string(),
+            Some(Path::new("/var/lib/storecold")),
+        );
+
+        assert_eq!(config.state_dir, Some(PathBuf::from("/var/lib/storecold")));
     }
 }

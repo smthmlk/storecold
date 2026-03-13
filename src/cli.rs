@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -7,6 +9,12 @@ use clap::{Parser, Subcommand};
     about = "Linux-first encrypted cold-storage backup daemon for S3 and Azure Blob"
 )]
 pub struct Cli {
+    /// Path to the YAML config file. Defaults to ~/.storecold.yaml.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+    /// Path to the local state directory. Overrides config.state_dir when set.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub state_dir: Option<PathBuf>,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -19,7 +27,7 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Create the local state directory and a starter config in the home directory.
+    /// Create the local state directory and a starter config.
     Init {
         /// Overwrite an existing config file.
         #[arg(long)]

@@ -2,6 +2,7 @@
 name = "storecold"
 version = "0.1.0"
 edition = "2024"
+description = "Linux-first encrypted cold-storage backup daemon for S3 and Azure Blob"
 
 [dependencies]
 anyhow = "1.0.100"
@@ -41,3 +42,16 @@ azure_identity = "0.33.0"
 azure_storage_blob = "0.10.0"
 
 [dev-dependencies]
+
+[package.metadata.deb]
+depends = "$auto"
+section = "utility"
+priority = "optional"
+maintainer-scripts = "debian/"
+assets = [
+  ["target/release/storecold", "usr/bin/", "755"],
+  ["README.md", "usr/share/doc/storecold/README.md", "644"],
+  ["contrib/systemd/storecold.config.yaml", "etc/storecold/config.yaml", "600"],
+  ["contrib/systemd/storecold.env.example", "etc/storecold/storecold.env", "600"],
+]
+systemd-units = { unit-scripts = "contrib/systemd", enable = false, start = false }

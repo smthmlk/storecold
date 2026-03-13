@@ -20,9 +20,14 @@ pub struct ResolvedPaths {
 }
 
 impl ResolvedPaths {
-    pub fn discover(state_dir_override: Option<&Path>) -> Result<Self> {
+    pub fn discover(
+        config_path_override: Option<&Path>,
+        state_dir_override: Option<&Path>,
+    ) -> Result<Self> {
         let home = home_dir().context("resolve home directory")?;
-        let config_path = home.join(".storecold.yaml");
+        let config_path = config_path_override
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| home.join(".storecold.yaml"));
         let state_dir = state_dir_override
             .map(Path::to_path_buf)
             .unwrap_or_else(|| home.join(".local/state/storecold"));
@@ -626,5 +631,22 @@ mod tests {
             & 0o777;
 
         assert_eq!(db_mode, 0o600);
+    }
+
+    #[test]
+    fn discover_honors_explicit_config_and_state_paths() {
+        let paths = ResolvedPaths::discover(
+            Some(Path::new("/etc/storecold/config.yaml")),
+            Some(Path::new("/var/lib/storecold")),
+        )
+        .expect("resolve paths");
+
+        assert_eq!(paths.config_path, Path::new("/etc/storecold/config.yaml"));
+        assert_eq!(paths.state_dir, Path::new("/var/lib/storecold"));
+        assert_eq!(paths.spool_dir, Path::new("/var/lib/storecold/spool"));
+        assert_eq!(
+            paths.database_path,
+            Path::new("/var/lib/storecold/catalog.db")
+        );
     }
 }

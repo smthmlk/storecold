@@ -1,0 +1,46 @@
+version: 1
+host_id: replace-me-host
+state_dir: /var/lib/storecold
+key_source:
+  type: passphrase
+  env_var: STORECOLD_PASSPHRASE
+repositories:
+  - name: cold-s3
+    kind: s3
+    data_bucket: replace-me-data
+    data_prefix: data/
+    region: us-west-2
+    storage_class: DEEP_ARCHIVE
+    index_bucket: replace-me-index
+    index_prefix: index/
+    index_storage_class: STANDARD
+  - name: cold-azure
+    kind: azure_blob
+    account: replace-me
+    auth:
+      type: developer_tools
+    data_container: backup-data
+    data_prefix: data/
+    access_tier: Archive
+    index_container: backup-index
+    index_prefix: index/
+    index_access_tier: Hot
+paths:
+  - path: /srv/archive
+    repository: cold-s3
+    excludes:
+      - "**/.cache/**"
+      - "**/*.tmp"
+upload:
+  batch_target_mib: 64
+  batch_max_delay_sec: 120
+  max_concurrent_uploads: 2
+  max_upload_mib_per_sec: 5
+  max_puts_per_minute: 30
+  max_local_spool_gib: 20
+policy:
+  rescan_interval: 6h
+  on_content_change: warn_and_keep_both
+  follow_symlinks: false
+  one_file_system: true
+  retain_deleted_versions_days: 365
