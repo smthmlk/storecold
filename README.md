@@ -24,6 +24,34 @@ storecold sync
 storecold daemon
 ```
 
+## Developer tasks
+
+This repo uses `just` as its command runner.
+
+Install the local tooling:
+
+```bash
+brew install just gitleaks
+cargo install --locked cargo-deny
+```
+
+Common tasks:
+
+```bash
+just build
+just release
+just test
+just deny
+just secrets
+just sec
+just ci
+```
+
+`just build` now runs the security checks before compiling.
+`just deny` runs `cargo-deny` with the repo's [`deny.toml`](deny.toml).
+`just secrets` runs `gitleaks` against the git history, preferring the newer
+`gitleaks git` subcommand but falling back to `detect` for older installs.
+
 ## Credentials
 
 Passphrase mode expects the environment variable configured in `key_source`.
